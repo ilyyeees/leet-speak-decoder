@@ -1,0 +1,9 @@
+transformers
+datasets
+torch
+evaluate
+sacrebleu
+jiwer
+accelerate
+tqdm
+sentencepiece

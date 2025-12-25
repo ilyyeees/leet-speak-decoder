@@ -1,0 +1,26 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.ipynb_checkpoints/
+.DS_Store
+
+# Virtual Environment
+venv/
+env/
+.env
+
+# Model weights (too large for git)
+byt5_leetspeak_model/
+byt5_leetspeak_model_*/
+finetune_checkpoints/
+safe_finetune_checkpoints/
+*.pt
+*.bin
+*.safetensors
+*.pth
+*.h5
+
+# VERY IMPORTANT: Secrets
+tensordock_key
+tensordock_key.pub
