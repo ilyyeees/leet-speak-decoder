@@ -49,8 +49,8 @@ OUTPUT_DIR = "./byt5_leetspeak_model_v2"
 # Training hyperparameters (optimized for continuing training)
 MAX_INPUT_LENGTH = 256
 MAX_TARGET_LENGTH = 256
-BATCH_SIZE = 16           # Same as original
-GRADIENT_ACCUM_STEPS = 2  # Effective batch: 32
+BATCH_SIZE = 8            # Middle ground - should fit with gradient checkpointing
+GRADIENT_ACCUM_STEPS = 4  # Effective batch: 32
 LEARNING_RATE = 5e-5      # LOWER than original (3e-4) to avoid forgetting!
 NUM_EPOCHS = 3
 WARMUP_STEPS = 200
@@ -249,19 +249,20 @@ def train(data_path: str):
     # Load data
     data = load_jsonl_data(data_path)
 
-    # MUST load existing model - no fallback!
+    # Load model from HuggingFace or local path
     model_path = EXISTING_MODEL_PATH
-    if not Path(model_path).exists():
-        print(f"[ERROR] Existing model NOT FOUND at: {model_path}")
-        print("[ERROR] This script CONTINUES training from your existing model.")
-        print("[ERROR] Make sure byt5_leetspeak_model exists!")
+    print(f"[info] Loading model from: {model_path}")
+
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(model_path)
+        model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
+        model = model.to(device)
+        model.gradient_checkpointing_enable()  # Save VRAM
+        print(f"[info] Successfully loaded model (with gradient checkpointing)!")
+    except Exception as e:
+        print(f"[ERROR] Failed to load model: {e}")
+        print("[ERROR] Make sure the model path or HuggingFace ID is correct.")
         exit(1)
-
-    print(f"[info] Loading EXISTING trained model from: {model_path}")
-
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
-    model = model.to(device)
 
     # Print model info
     total_params = sum(p.numel() for p in model.parameters())
@@ -289,7 +290,7 @@ def train(data_path: str):
         num_train_epochs=NUM_EPOCHS,
 
         # Evaluation & Saving
-        evaluation_strategy="epoch",
+        eval_strategy="epoch",
         save_strategy="epoch",
         load_best_model_at_end=True,
         metric_for_best_model="eval_loss",
