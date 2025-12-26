@@ -181,21 +181,30 @@ def parse_comments_from_post(html):
             print("    [DEBUG] BLOCKED: Too Many Requests")
         return []
 
+    print(f"    [DEBUG] Found {len(comment_divs)} 'thing' divs")
+
+    skipped_not_comment = 0
+    skipped_no_body = 0
+    skipped_validation = 0
+
     for div in comment_divs:
-        # Skip if it's a post, not a comment
-        if 't1_' not in div.get('class', [''])[0]:
+        # Check if it is a comment (has class starting with t1_)
+        classes = div.get('class', [])
+        if not any(c.startswith('t1_') for c in classes):
+            skipped_not_comment += 1
             continue
 
         # Extract comment text
         comment_body = div.find('div', class_='md')
         if not comment_body:
+            skipped_no_body += 1
             continue
 
         text = comment_body.get_text().strip()
 
         # Validate
         if is_valid_comment(text):
-            # Extract score
+            # ... score extraction ...
             score_elem = div.find('span', class_='score unvoted')
             score = 0
             if score_elem:
@@ -209,7 +218,13 @@ def parse_comments_from_post(html):
                 'text': text,
                 'score': score,
             })
+        else:
+            skipped_validation += 1
+            # Print sample of rejected text (first one only)
+            if skipped_validation == 1:
+                print(f"    [DEBUG] Rejected sample: {text[:50]}...")
 
+    print(f"    [DEBUG] Skipped: {skipped_not_comment} not_t1, {skipped_no_body} no_body, {skipped_validation} invalid")
     return comments
 
 
