@@ -1,13 +1,25 @@
-# V2 Training Pipeline
+# v2 training pipeline
 
-## Why V2?
+## results
 
-The V1 model (trained on WikiText + synthetic leetspeak) achieved **71% accuracy**. While decent, it struggles with:
-- **Real-world slang context** (e.g., `rn` → "run" vs "right now")
-- **Gaming/Reddit abbreviations** (`tbh`, `idk`, `ngl`)
-- **Heavy leetspeak combinations** (`1 h4v3 2 g0 2 th3 5t0r3`)
+trained on real reddit comments, v2 achieved **85% accuracy** (up from 71% in v1).
 
-**V2 Goal**: Train on **real Reddit comments** to achieve **95%+ accuracy**.
+| metric | v1 | v2 |
+|--------|-----|-----|
+| accuracy | 71% | **85%** |
+| training data | wikitext (synthetic) | reddit (real) |
+| slang handling | poor | good |
+
+**model**: [huggingface.co/ilyyeees/byt5-leetspeak-decoder-v2](https://huggingface.co/ilyyeees/byt5-leetspeak-decoder-v2)
+
+---
+
+## why v2?
+
+the v1 model (trained on wikitext + synthetic leetspeak) achieved 71% accuracy but struggled with:
+- **real-world slang context** (e.g., `rn` → "run" vs "right now")
+- **gaming/reddit abbreviations** (`tbh`, `idk`, `ngl`)
+- **heavy leetspeak combinations** (`1 h4v3 2 g0 2 th3 5t0r3`)
 
 ---
 

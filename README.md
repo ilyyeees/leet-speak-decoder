@@ -1,11 +1,12 @@
 # byt5 leetspeak decoder
 
-[![hugging face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Model-blue)](https://huggingface.co/ilyyeees/byt5-leetspeak-decoder)
+[![hugging face v1](https://img.shields.io/badge/%F0%9F%A4%97%20v1-71%25-blue)](https://huggingface.co/ilyyeees/byt5-leetspeak-decoder)
+[![hugging face v2](https://img.shields.io/badge/%F0%9F%A4%97%20v2-85%25-green)](https://huggingface.co/ilyyeees/byt5-leetspeak-decoder-v2)
 
 a context-aware ai model that translates leetspeak back into clean english.
 built on google's `byt5-base` architecture to handle character-level noise without vocabulary limitations.
 
-**try it online**: [ilyyeees/byt5-leetspeak-decoder](https://huggingface.co/ilyyeees/byt5-leetspeak-decoder)
+**try it online**: [v2 (recommended)](https://huggingface.co/ilyyeees/byt5-leetspeak-decoder-v2) | [v1](https://huggingface.co/ilyyeees/byt5-leetspeak-decoder)
 
 ---
 
@@ -13,8 +14,8 @@ built on google's `byt5-base` architecture to handle character-level noise witho
 
 | version | accuracy | training data | status |
 |---------|----------|---------------|--------|
-| **v1** | ~71% | wikitext + synthetic | ✅ released |
-| **v2** | 95%+ (target) | real reddit + qwen translations | 🚧 in progress |
+| **v1** | 71% | wikitext + synthetic | released |
+| **v2** | **85%** | real reddit + qwen translations | ✅ **released** |
 
 ---
 
@@ -23,7 +24,7 @@ built on google's `byt5-base` architecture to handle character-level noise witho
 ```python
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
-model_name = "ilyyeees/byt5-leetspeak-decoder"
+model_name = "ilyyeees/byt5-leetspeak-decoder-v2"  # or v1: byt5-leetspeak-decoder
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
 
@@ -49,6 +50,8 @@ leetspeak/
 │
 ├── v2_training/          # improved training (real reddit data)
 │   ├── train_model_v2.py
+│   ├── finetune_edge_cases.py
+│   ├── smart_test_suite.py
 │   └── data_pipeline/
 │       ├── scraping/     # reddit comment scraper
 │       └── processing/   # translation + corruption
@@ -84,8 +87,9 @@ uses real reddit comments translated by qwen 2.5 32b (via tensordock cloud gpu).
 2. translate to formal english using qwen 32b on cloud
 3. corrupt originals further (3x multiplexing)
 4. continue training v1 model on new data
+5. fine-tune edge cases (brb, g2g, etc.)
 
-**target:** 95%+ accuracy on real-world slang.
+**result:** **85% accuracy** on real-world slang (up from 71%).
 
 see [v2_training/README.md](v2_training/README.md) for details.
 
