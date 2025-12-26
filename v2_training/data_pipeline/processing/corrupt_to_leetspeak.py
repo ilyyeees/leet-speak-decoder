@@ -320,44 +320,114 @@ class LeetSpeakCorruptor:
 
     def corrupt(self, text: str) -> str:
         """
-        Main corruption function. Transforms clean text into leetspeak.
-
-        Args:
-            text: Clean English text
-
-        Returns:
-            Corrupted leetspeak version
+        Main corruption function with DYNAMIC INTENSITY.
+        some lines will be light (abbreviations only), some heavy.
         """
-        result = text
+        # Determine strategy for this specific line
+        roll = random.random()
 
-        # 1. PHRASE-LEVEL REPLACEMENTS FIRST (multi-word -> abbreviation)
+        if roll < 0.5:
+            # STRATEGY 1: LIGHT (50% of data)
+            # Focus on abbreviations and simple word swaps, very little character noise.
+            # Good for "normal english with just some abbreviations"
+            current_intensity = self.intensity * 0.3
+            do_chars = False
+            do_case = False
+            do_noise = False
+        elif roll < 0.8:
+            # STRATEGY 2: MEDIUM (30% of data)
+            # Abbreviations + some simple character swaps (e -> 3)
+            current_intensity = self.intensity * 0.7
+            do_chars = True
+            do_case = False
+            do_noise = True
+        else:
+            # STRATEGY 3: HEAVY (20% of data)
+            # Full chaos mode
+            current_intensity = self.intensity
+            do_chars = True
+            do_case = True
+            do_noise = True
+
+        result = text
         text_lower = result.lower()
+
+        # 1. PHRASE/WORD REPLACEMENTS (High priority for all strategies)
+        # We want to ensure 'right now' -> 'rn' happens often
         for phrase, replacements in self.word_map.items():
-            if ' ' in phrase:  # Only multi-word phrases
-                if phrase in text_lower and random.random() < self.intensity:
+            # Higher chance for abbreviations in all modes
+            phrase_prob = max(0.8, current_intensity * 1.5)
+
+            if ' ' in phrase:
+                if phrase in text_lower and random.random() < phrase_prob:
                     replacement = random.choice(replacements)
-                    # Case-insensitive replacement
                     pattern = re.compile(re.escape(phrase), re.IGNORECASE)
                     result = pattern.sub(replacement, result, count=1)
-                    text_lower = result.lower()  # Update for next iteration
+                    text_lower = result.lower()
 
         # 2. WORD-LEVEL CORRUPTIONS
         words = result.split()
-        corrupted_words = [self.corrupt_word(word) for word in words]
-        result = ' '.join(corrupted_words)
+        new_words = []
+        for word in words:
+            # For each word, decide how much to mess it up based on current_intensity
 
-        # 3. ADD NOISE
-        result = self.add_noise(result)
+            # Word map check (single words like 'you' -> 'u')
+            lower_w = word.lower()
+            if lower_w in self.word_map and random.random() < max(0.7, current_intensity * 1.5):
+                rep = random.choice(self.word_map[lower_w])
+                if word[0].isupper():
+                    rep = rep[0].upper() + rep[1:] if len(rep) > 0 else rep
+                new_words.append(rep)
+                continue
 
-        # 4. APPLY CASE CHAOS
-        result = self.apply_case_chaos(result)
+            # Character corruption check
+            if do_chars:
+                # Use simple map more often for readability
+                use_simple = random.random() < 0.8
+                chars = []
+                for char in word:
+                    # Pass the dynamic intensity to corrupt_char implicitly?
+                    # Actually, let's just inline logic or rely on the class intensity.
+                    # We will scale probability manually here:
+                    if random.random() < current_intensity:
+                         chars.append(self._get_char_replacement(char, use_simple))
+                    else:
+                        chars.append(char)
+                new_words.append(''.join(chars))
+            else:
+                new_words.append(word)
+
+        result = ' '.join(new_words)
+
+        # 3. NOISE & CASE
+        if do_noise:
+            result = self.add_noise(result)
+        if do_case:
+            result = self.apply_case_chaos(result)
 
         return result
+
+    def _get_char_replacement(self, char: str, use_simple: bool) -> str:
+        """Helper to get char replacement without probability check (check done by caller)."""
+        lower = char.lower()
+        if use_simple and lower in self.simple_char_map:
+             rep = random.choice(self.simple_char_map[lower])
+        elif lower in self.char_map:
+             rep = random.choice(self.char_map[lower])
+        else:
+             return char
+
+        if char.isupper() and len(rep) > 0:
+            return rep[0].upper() + rep[1:]
+        return rep
 
 
 def process_file(input_path: str, output_path: str, intensity: float = 0.7):
     """
-    Process a JSONL file and corrupt all text entries.
+    Process translated_pairs.jsonl:
+    1. Read 'original' text (raw Reddit comment)
+    2. Corrupt it FURTHER to create 'heavy_leetspeak'
+    3. Save pair: {'input': heavy_leetspeak, 'target': formal}
     """
     corruptor = LeetSpeakCorruptor(intensity=intensity)
 
@@ -370,31 +440,63 @@ def process_file(input_path: str, output_path: str, intensity: float = 0.7):
 
     processed = 0
 
-    with open(input_file, 'r') as f_in, open(output_file, 'w') as f_out:
+    # Corrupt logic needs to be exposed differently or we just call corrupt 3 times
+    # But wait, the corrupt() function randomly picks a strategy.
+    # To guarantee diversity, we should force strategies or just call it multiple times.
+    # Since corrupt() relies on random rolls, calling it 3 times will likely give different results.
+    # A better approach: explicitly pass intensity/strategy to corrupt() or just loop.
+
+    # Let's simple loop 3 times. With random.random(), we'll get a mix.
+    # To be MORE precise, let's just generate 3 distinct variants ensuring coverage.
+
+    # Collect all pairs in memory first to shuffle
+    all_pairs = []
+
+    print("Generating variants...")
+    with open(input_file, 'r') as f_in:
         for line in f_in:
             try:
                 data = json.loads(line.strip())
-                original_text = data.get('text', '')
 
-                # Corrupt the text
-                corrupted_text = corruptor.corrupt(original_text)
+                raw_input = data.get('original') or data.get('text', '')
+                formal_target = data.get('formal', '')
 
-                # Save corrupted version
-                output_data = {
-                    'original': original_text,
-                    'corrupted': corrupted_text,
-                    'subreddit': data.get('subreddit', ''),
-                }
-                f_out.write(json.dumps(output_data) + '\n')
+                if not raw_input or not formal_target:
+                    continue
 
-                processed += 1
-                if processed % 500 == 0:
-                    print(f"Processed {processed} comments...")
+                # MULTIPLEXING: Generate 3 variants per comment
+                variants = []
+
+                # Generate 3 variants (looping to get different random corruptions)
+                for _ in range(3):
+                    variants.append(corruptor.corrupt(raw_input))
+
+                # Save all unique variants
+                unique_variants = set(variants)
+
+                for variant in unique_variants:
+                    output_data = {
+                        'input_text': variant,
+                        'target_text': formal_target,
+                    }
+                    all_pairs.append(json.dumps(output_data))
+                    processed += 1
+
+                if processed % 1500 == 0:
+                    print(f"Generated {processed} variants (in memory)...")
 
             except json.JSONDecodeError:
                 continue
 
-    print(f"\n✓ Done! Processed {processed} comments")
+    print(f"Shuffling {len(all_pairs)} training pairs...")
+    random.shuffle(all_pairs)
+
+    print(f"Writing to {output_file}...")
+    with open(output_file, 'w') as f_out:
+        for line in all_pairs:
+            f_out.write(line + '\n')
+
+    print(f"\n✓ Done! Generated and shuffled {len(all_pairs)} training pairs")
     print(f"Output: {output_file}")
 
 
