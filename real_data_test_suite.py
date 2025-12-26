@@ -224,7 +224,7 @@ def run_comprehensive_tests(translate_function):
     failures = []
 
     print("=" * 80)
-    print("COMPREHENSIVE LEETSPEAK DECODER TEST SUITE")
+    print("LEETSPEAK DECODER TEST SUITE")
     print("=" * 80)
     print(f"\\nRunning {len(test_cases)} test cases...\\n")
 
