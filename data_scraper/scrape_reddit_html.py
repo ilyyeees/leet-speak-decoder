@@ -284,7 +284,7 @@ def scrape_reddit_html():
                     comments = parse_comments_from_post(post_html)
                     total_checked += len(comments)
 
-                    # Save valid comments
+                    valid_count = 0
                     for comment in comments:
                         # Skip duplicates
                         if comment['text'] in seen_texts:
@@ -302,6 +302,7 @@ def scrape_reddit_html():
 
                         seen_texts.add(comment['text'])
                         total_scraped += 1
+                        valid_count += 1
 
                         # Progress update
                         if total_scraped % 100 == 0:
@@ -313,8 +314,10 @@ def scrape_reddit_html():
                             break
 
                     posts_checked += 1
-                    if posts_checked % 5 == 0:
-                        print(f"  Posts checked: {posts_checked}/{POSTS_PER_SUBREDDIT}")
+                    print(f"  [Post {posts_checked}/{POSTS_PER_SUBREDDIT}] "
+                          f"Parsed: {len(comments)}, Kept: {valid_count} "
+                          f"(Total Saved: {total_scraped})")
+
 
             except Exception as e:
                 print(f"  ⚠ Error: {e}")
