@@ -226,7 +226,7 @@ def run_comprehensive_tests(translate_function):
     print("=" * 80)
     print("COMPREHENSIVE LEETSPEAK DECODER TEST SUITE")
     print("=" * 80)
-    print(f"\nRunning {len(test_cases)} test cases...\n")
+    print(f"\\nRunning {len(test_cases)} test cases...\\n")
 
     for i, (input_text, expected) in enumerate(test_cases, 1):
         result = translate_function(input_text)
@@ -237,23 +237,25 @@ def run_comprehensive_tests(translate_function):
 
         if result_normalized == expected_normalized:
             passed += 1
-            status = "✓ PASS"
+            # Show progress every 20 passed tests
+            if i % 20 == 0:
+                print(f"[{i:3d}/{len(test_cases)}] ✓ PASS")
         else:
             failed += 1
-            status = "✗ FAIL"
             failures.append({
                 'input': input_text,
                 'expected': expected,
                 'got': result
             })
-
-        # Print every 10th test to avoid spam
-        if i % 10 == 0 or status == "✗ FAIL":
-            print(f"[{i:3d}/{len(test_cases)}] {status} | {input_text[:40]:<40}")
+            # ALWAYS show failures immediately with full comparison
+            print(f"\\n[{i:3d}/{len(test_cases)}] ✗ FAIL")
+            print(f"  Input:    {input_text}")
+            print(f"  Expected: {expected}")
+            print(f"  Got:      {result}")
 
     # Summary
     accuracy = (passed / len(test_cases)) * 100
-    print("\n" + "=" * 80)
+    print("\\n" + "=" * 80)
     print("TEST RESULTS SUMMARY")
     print("=" * 80)
     print(f"Total Tests:  {len(test_cases)}")
@@ -261,15 +263,12 @@ def run_comprehensive_tests(translate_function):
     print(f"Failed:       {failed} ({failed/len(test_cases)*100:.1f}%)")
     print(f"Accuracy:     {accuracy:.2f}%")
 
-    # Show failures
+    # Note about failures
     if failures:
-        print("\n" + "=" * 80)
-        print("FAILED TESTS (showing first 20)")
+        print("\\n" + "=" * 80)
+        print(f"FAILED TEST COUNT: {len(failures)}")
         print("=" * 80)
-        for fail in failures[:20]:
-            print(f"\nInput:    {fail['input']}")
-            print(f"Expected: {fail['expected']}")
-            print(f"Got:      {fail['got']}")
+        print("(All failures shown inline above with Expected vs Got)")
 
     return {
         'total': len(test_cases),
