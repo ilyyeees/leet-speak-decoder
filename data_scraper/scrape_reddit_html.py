@@ -40,6 +40,14 @@ SUBREDDITS = [
     'discordapp',
 ]
 
+# Search terms to find dense leetspeak threads
+SEARCH_TERMS = [
+    'leetspeak',
+    '1337',
+    '1337 speak',
+    'h4x0r',
+]
+
 # Scraping parameters
 TARGET_COMMENTS = 50000  # How many comments to scrape
 MIN_COMMENT_LENGTH = 10  # Minimum characters
@@ -108,26 +116,20 @@ class RedditScraper:
 
 def has_leetspeak_indicators(text):
     """
-    Check if text likely contains leetspeak/abbreviations.
+    Check if text is REAL leetspeak (must have numbers/symbols as letters).
+    Slang/abbreviations alone (idk, lol) are NOT enough.
     """
     text_lower = text.lower()
 
-    # Pattern 1: Numbers used as letters (1, 3, 4, 7, 0)
-    if re.search(r'\b\w*[1347@$]\w*\b', text):
+    # STRICT FILTER: Must have numbers mixed into words
+    # Matches: h3ll0, w0rld, l8r, n00b, pwn3d
+    # Does not match: "2024", "100", "idk", "lol"
+    if re.search(r'[a-z]+[0-9]+[a-z]*|[a-z]*[0-9]+[a-z]+', text_lower):
         return True
 
-    # Pattern 2: Common abbreviations
-    abbrevs = [
-        'idk', 'omg', 'lol', 'brb', 'btw', 'tbh', 'imo', 'afaik',
-        'nvm', 'rn', 'fr', 'np', 'g2g', 'w8', 'l8r', 'm8',
-        'thx', 'pls', 'plz', 'u', 'ur', 'y', 'gg', 'wp'
-    ]
-    text_words = set(re.findall(r'\b\w+\b', text_lower))
-    if any(abbr in text_words for abbr in abbrevs):
-        return True
-
-    # Pattern 3: Repeated characters
-    if re.search(r'(\d)\1{2,}|([a-z])\2{3,}', text_lower):
+    # Also accept heavy symbol usage if it looks like masking
+    # Matches: @, $, 1, 3, 4, 5, 7, 0 used inside words
+    if re.search(r'\b\w*[@$34570]\w*\b', text):
         return True
 
     return False
@@ -269,24 +271,41 @@ def scrape_reddit_html():
     print(f"Using: old.reddit.com (easier to parse)")
     print(f"\nStarting scrape...\n")
 
+    # Build list of URLs to scrape
+    urls_to_scrape = []
+
+    # 1. Search results (high priority)
+    for term in SEARCH_TERMS:
+        term_encoded = term.replace(' ', '+')
+        urls_to_scrape.append({
+            'type': 'search',
+            'name': f"Search: {term}",
+            'url': f"https://old.reddit.com/search.json?q={term_encoded}&sort=relevance&limit=100"
+        })
+
+    # 2. Subreddits (hot posts)
+    for sub in SUBREDDITS:
+        urls_to_scrape.append({
+            'type': 'subreddit',
+            'name': f"r/{sub}",
+            'url': f"https://old.reddit.com/r/{sub}/hot.json?limit=100"
+        })
+
     with open(output_file, 'a') as f:
-        for subreddit_name in SUBREDDITS:
+        for source in urls_to_scrape:
             if total_scraped >= TARGET_COMMENTS:
                 break
 
-            print(f"[{subreddit_name}] Scraping...")
-
-            # Get top posts from subreddit
-            subreddit_url = f"https://old.reddit.com/r/{subreddit_name}/hot.json?limit=100"
+            print(f"[{source['name']}] Scraping...")
 
             try:
-                # Fetch subreddit page
-                html = scraper.get_page(subreddit_url)
+                # Fetch listing page
+                html = scraper.get_page(source['url'])
                 if not html:
-                    print(f"  ⚠ Failed to fetch subreddit")
+                    print(f"  ⚠ Failed to fetch listing")
                     continue
 
-                # Parse JSON (old.reddit.com with .json gives JSON)
+                # Parse JSON
                 try:
                     data = json.loads(html)
                     posts = data['data']['children']
@@ -301,7 +320,8 @@ def scrape_reddit_html():
                         break
 
                     post_id = post['data']['id']
-                    post_url = f"https://old.reddit.com/r/{subreddit_name}/comments/{post_id}"
+                    # Construct permalink from ID to ensure we go to old.reddit
+                    post_url = f"https://old.reddit.com/comments/{post_id}"
 
                     # Fetch post comments
                     post_html = scraper.get_page(post_url)
@@ -320,7 +340,7 @@ def scrape_reddit_html():
 
                         # Save comment
                         data = {
-                            'subreddit': subreddit_name,
+                            'subreddit': post['data'].get('subreddit', 'unknown'),
                             'text': comment['text'],
                             'score': comment['score'],
                             'timestamp': datetime.now().isoformat()
