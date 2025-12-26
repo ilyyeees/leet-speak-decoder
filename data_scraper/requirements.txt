@@ -1,1 +1,3 @@
-praw
+requests
+beautifulsoup4
+lxml
