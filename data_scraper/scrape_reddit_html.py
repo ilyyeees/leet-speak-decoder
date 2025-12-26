@@ -174,6 +174,13 @@ def parse_comments_from_post(html):
     # Find all comment divs
     comment_divs = soup.find_all('div', class_='thing')
 
+    if not comment_divs:
+        print(f"    [DEBUG] No 'div.thing' found! Page Title: {soup.title.string if soup.title else 'No Title'}")
+        print(f"    [DEBUG] HTML Length: {len(html)}")
+        if "Too Many Requests" in html:
+            print("    [DEBUG] BLOCKED: Too Many Requests")
+        return []
+
     for div in comment_divs:
         # Skip if it's a post, not a comment
         if 't1_' not in div.get('class', [''])[0]:
