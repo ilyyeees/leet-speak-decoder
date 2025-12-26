@@ -1,0 +1,17 @@
+# Ignore scraped data
+raw_comments.jsonl
+*.jsonl
+*.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Virtual environment
+venv/
+env/
+.env
