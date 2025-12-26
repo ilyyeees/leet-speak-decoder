@@ -188,14 +188,20 @@ def parse_comments_from_post(html):
     skipped_validation = 0
 
     for div in comment_divs:
-        # Check if it is a comment (has class starting with t1_)
-        classes = div.get('class', [])
-        if not any(c.startswith('t1_') for c in classes):
+        # Check if it is a comment (using data-type attribute is more reliable)
+        if div.get('data-type') != 'comment':
             skipped_not_comment += 1
+            # Debug: print what kind of thing it is
+            # print(f"    [DEBUG] Skipped thing with data-type: {div.get('data-type')}")
             continue
 
-        # Extract comment text
-        comment_body = div.find('div', class_='md')
+        # Extract comment text from the entry (div.entry > form > div.usertext-body > div.md)
+        # On old.reddit, sometimes structure is nested differently
+        comment_body = div.find('div', class_='usertext-body')
+        if not comment_body:
+            # Fallback
+            comment_body = div.find('div', class_='md')
+
         if not comment_body:
             skipped_no_body += 1
             continue
