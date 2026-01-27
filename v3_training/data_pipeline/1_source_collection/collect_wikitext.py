@@ -88,7 +88,17 @@ def collect_wikitext(output_path: str, target_count: int = 20000):
     print("=" * 60)
     
     print(f"\n[1/4] Loading WikiText-103 dataset...")
-    dataset = load_dataset("wikitext", "wikitext-103-v1", split="train")
+    try:
+        # Primary: Salesforce/wikitext (the new location)
+        dataset = load_dataset("Salesforce/wikitext", "wikitext-103-v1", split="train", trust_remote_code=True)
+    except Exception as e:
+        print(f"       Salesforce/wikitext failed, trying alternatives...")
+        try:
+            # Fallback: openwebtext
+            dataset = load_dataset("openwebtext", split="train[:100000]", trust_remote_code=True)
+        except Exception:
+            print(f"[ERROR] Could not load any text dataset. Error: {e}")
+            return 0
     print(f"       Loaded {len(dataset)} paragraphs")
     
     print(f"\n[2/4] Extracting and filtering sentences...")
