@@ -1,0 +1,13 @@
+# V3 Training Pipeline Requirements
+# Install with: pip install -r requirements.txt
+
+# Core
+datasets>=2.14.0
+requests>=2.31.0
+tqdm>=4.65.0
+
+# For LLM generation (already installed if using transformers)
+# transformers>=4.35.0
+
+# Optional: for faster JSON processing
+# orjson>=3.9.0
