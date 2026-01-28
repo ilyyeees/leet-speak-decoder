@@ -318,7 +318,7 @@ class TrainingConfig:
 
     # === Advanced Options ===
     seed: int = 42
-    dataloader_num_workers: int = 32
+    dataloader_num_workers: int = 48  # Use all 48 cores
     dataloader_pin_memory: bool = True
     dataloader_prefetch_factor: int = 4
 
