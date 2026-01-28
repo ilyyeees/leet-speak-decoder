@@ -277,10 +277,10 @@ if __name__ == "__main__":
                         help="Ollama model name")
     parser.add_argument("--ollama-url", default="http://localhost:11434/api/generate",
                         help="Ollama API URL")
-    parser.add_argument("--batch-size", "-b", type=int, default=100,
+    parser.add_argument("--batch-size", "-b", type=int, default=50,
                         help="Batch size for progress tracking")
-    parser.add_argument("--workers", "-w", type=int, default=16,
-                        help="Parallel workers (default: 16 - A100 optimized)")
+    parser.add_argument("--workers", "-w", type=int, default=6,
+                        help="Parallel workers (default: 6 - RTX 5090 optimized)")
     parser.add_argument("--max", "-n", type=int, default=None,
                         help="Max samples to process (for testing)")
     

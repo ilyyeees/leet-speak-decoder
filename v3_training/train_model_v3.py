@@ -109,11 +109,11 @@ class TrainingConfig:
     max_target_length: int = 384
     train_split: float = 0.95  # More training data, less validation
 
-    # === Training Hyperparameters (A100 Optimized) ===
+    # === Training Hyperparameters (RTX 5090 Optimized) ===
     # Batch settings
-    per_device_train_batch_size: int = 32  # A100 80GB can handle this
-    per_device_eval_batch_size: int = 64
-    gradient_accumulation_steps: int = 2  # Effective batch: 64
+    per_device_train_batch_size: int = 8  # Reduced for 32GB VRAM
+    per_device_eval_batch_size: int = 16
+    gradient_accumulation_steps: int = 8  # Effective batch: 64
 
     # Learning rate schedule
     learning_rate: float = 2e-4  # Slightly higher for fresh training
