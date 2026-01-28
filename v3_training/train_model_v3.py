@@ -894,6 +894,11 @@ class ComputeMetrics:
         if isinstance(predictions, tuple):
             predictions = predictions[0]
 
+        # ByT5 fix: clip predictions to valid token range
+        # ByT5 vocab size is 259 (256 bytes + 3 special tokens)
+        # Invalid token IDs cause "chr() arg not in range(0x110000)" error
+        predictions = np.clip(predictions, 0, self.tokenizer.vocab_size - 1)
+
         # Replace -100 in labels (padding)
         labels = np.where(labels != -100, labels, self.tokenizer.pad_token_id)
 
