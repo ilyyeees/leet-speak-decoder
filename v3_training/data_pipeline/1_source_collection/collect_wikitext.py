@@ -89,16 +89,15 @@ def collect_wikitext(output_path: str, target_count: int = 20000):
     
     print(f"\n[1/4] Loading WikiText-103 dataset...")
     try:
-        # Primary: Salesforce/wikitext
-        # NOTE: trust_remote_code is deprecated, removed it
+        # Primary: Salesforce/wikitext (Parquet version, no custom code needed)
         dataset = load_dataset("Salesforce/wikitext", "wikitext-103-v1", split="train")
     except Exception as e:
-        print(f"       Salesforce/wikitext failed ({e}), trying alternatives...")
+        print(f"       Salesforce/wikitext failed ({e}). Trying fallback...")
         try:
-            # Fallback: simple wikitext
+            # Fallback: old identifier (might work if cached)
             dataset = load_dataset("wikitext", "wikitext-103-v1", split="train")
-        except Exception:
-            print(f"[ERROR] Could not load any text dataset.")
+        except Exception as e2:
+            print(f"[ERROR] Could not load WikiText: {e2}")
             return 0
     print(f"       Loaded {len(dataset)} paragraphs")
     

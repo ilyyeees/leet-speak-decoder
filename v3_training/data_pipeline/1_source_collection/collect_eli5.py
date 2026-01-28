@@ -96,23 +96,30 @@ def collect_eli5(output_path: str, target_count: int = 15000):
     print("=" * 60)
     
     print(f"\n[1/4] Loading ELI5 dataset...")
+    # Try 1: Main ELI5
     try:
-        # Try the main ELI5 dataset (without trust_remote_code)
+        # Load ELI5 (legacy) without remote code
         dataset = load_dataset("eli5", split="train_eli5")
-    except Exception as e:
-        print(f"       Main dataset unavailable ({e}), trying alternative...")
+    except Exception:
+        print(f"       Main ELI5 failed, trying alternative...")
+        # Try 2: ELI5 Category
         try:
-            # Alternative: specialized eli5 category
             dataset = load_dataset("eli5_category", split="train")
         except Exception:
-            print(f"       ELI5 dataset not available. Trying C4 as fallback...")
-            # Fallback to C4 realnewslike (clean, diverse English)
+            print(f"       ELI5 Category failed. Trying Reddit TIFU...")
+            # Try 3: Reddit TIFU (Parquet version if avail, or standard)
             try:
-                dataset = load_dataset("c4", "realnewslike", split="train", streaming=True)
-                dataset = dataset.take(target_count * 2)  # Take what we need since it's huge
-            except Exception as e:
-                print(f"[ERROR] Could not load any fallback dataset: {e}")
-                return 0
+                # Remove trust_remote_code completely
+                dataset = load_dataset("reddit_tifu", "short", split="train")
+            except Exception:
+                print(f"       Reddit datasets failed. Switching to C4 RealNewsLike (reliable)...")
+                # Try 4: C4 RealNewsLike (Guaranteed to work, standard parquet)
+                try:
+                    dataset = load_dataset("allenai/c4", "realnewslike", split="train", streaming=True)
+                    dataset = dataset.take(target_count * 2)
+                except Exception as e:
+                    print(f"[ERROR] All datasets failed. Last error: {e}")
+                    return 0
     
     print(f"       Loaded {len(dataset)} entries")
     
