@@ -1111,9 +1111,11 @@ def train(
         dataloader_prefetch_factor=config.dataloader_prefetch_factor,
 
         # Generation settings for evaluation
-        predict_with_generate=True,
-        generation_max_length=config.max_target_length,
-        generation_num_beams=4,
+        # DISABLED: predict_with_generate is SLOW (12+ min for 36k samples)
+        # Loss is sufficient for early stopping; sanity check shows real outputs
+        predict_with_generate=False,
+        # generation_max_length=config.max_target_length,
+        # generation_num_beams=4,
 
         # Misc
         seed=config.seed,
