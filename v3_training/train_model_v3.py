@@ -254,7 +254,7 @@ class TrainingConfig:
 
     # === Storage Optimization (for low-disk instances) ===
     checkpoints_to_ram: bool = False  # Save checkpoints to /dev/shm (RISKY - lost on reboot!)
-    save_total_limit: int = 2  # Keep only 2 checkpoints to save space
+    save_total_limit: int = 1  # Keep only 1 checkpoint to save space (~1.2GB)
 
     # === Advanced Options ===
     seed: int = 42
@@ -1120,6 +1120,19 @@ def train(
     print(f"  Final eval loss:  {eval_metrics.get('eval_loss', 'N/A'):.4f}")
     print(f"  Final BLEU:       {eval_metrics.get('eval_bleu', 'N/A'):.2f}")
 
+    # Clean up checkpoint folders to save disk space (final model is already saved)
+    import glob
+    checkpoint_dirs = glob.glob(os.path.join(config.output_dir, "checkpoint-*"))
+    if checkpoint_dirs:
+        print(f"\n[CLEANUP] Removing {len(checkpoint_dirs)} checkpoint folder(s) to save disk...")
+        for ckpt_dir in checkpoint_dirs:
+            try:
+                shutil.rmtree(ckpt_dir)
+                print(f"  Deleted: {ckpt_dir}")
+            except Exception as e:
+                print(f"  Failed to delete {ckpt_dir}: {e}")
+        print("[CLEANUP] Done! Only final model remains.")
+
     # If checkpoints were in RAM, remind user to copy final model!
     if config.checkpoints_to_ram:
         print("\n" + "!" * 70)
@@ -1241,8 +1254,8 @@ Examples:
                         help="Resume from checkpoint")
     parser.add_argument("--checkpoints-to-ram", action="store_true",
                         help="Save checkpoints to /dev/shm (saves disk but lost on reboot!)")
-    parser.add_argument("--save-limit", type=int, default=2,
-                        help="Max checkpoints to keep (default: 2 to save space)")
+    parser.add_argument("--save-limit", type=int, default=1,
+                        help="Max checkpoints to keep (default: 1 to save space)")
 
     # Evaluation/Testing
     parser.add_argument("--test", type=str, default=None,
