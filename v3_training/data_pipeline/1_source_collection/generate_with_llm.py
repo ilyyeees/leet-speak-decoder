@@ -309,12 +309,12 @@ if __name__ == "__main__":
                         help="Target number of sentences (default: 15000)")
     parser.add_argument("--model", "-m", default="qwen2.5:32b",
                         help="Ollama model name (default: qwen2.5:32b)")
-    parser.add_argument("--batch", "-b", type=int, default=32,
-                        help="Sentences per LLM call (default: 32 - RTX 5090 optimized)")
+    parser.add_argument("--batch", "-b", type=int, default=50,
+                        help="Sentences per LLM call (default: 50 - 2x RTX 5090 optimized)")
     parser.add_argument("--ollama-url", default="http://localhost:11434/api/generate",
                         help="Ollama API URL")
-    parser.add_argument("--workers", "-w", type=int, default=6,
-                        help="Number of parallel workers (default: 6 - RTX 5090 optimized)")
+    parser.add_argument("--workers", "-w", type=int, default=12,
+                        help="Number of parallel workers (default: 12 - 2x RTX 5090 optimized)")
     
     args = parser.parse_args()
     generate_sentences(args.output, args.model, args.count, args.batch, args.ollama_url, args.workers)

@@ -109,11 +109,11 @@ class TrainingConfig:
     max_target_length: int = 384
     train_split: float = 0.95  # More training data, less validation
 
-    # === Training Hyperparameters (RTX 5090 Optimized) ===
+    # === Training Hyperparameters (2x RTX 5090 Optimized) ===
     # Batch settings
-    per_device_train_batch_size: int = 8  # Reduced for 32GB VRAM
-    per_device_eval_batch_size: int = 16
-    gradient_accumulation_steps: int = 8  # Effective batch: 64
+    per_device_train_batch_size: int = 16  # 32GB VRAM per card allows this
+    per_device_eval_batch_size: int = 32
+    gradient_accumulation_steps: int = 4  # Effective batch: 16*2*4 = 128
 
     # Learning rate schedule
     learning_rate: float = 2e-4  # Slightly higher for fresh training
