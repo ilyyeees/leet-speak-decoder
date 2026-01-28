@@ -149,7 +149,7 @@ def download_v2_model_to_ram(force_download: bool = False) -> str:
     """
     Download the v2 model to RAM-backed storage.
 
-    For multi-GPU: Only rank 0 downloads, others wait.
+    For multi-GPU: Only rank 0 downloads, others wait for completion marker.
 
     Returns:
         Path to the downloaded model in RAM
@@ -157,18 +157,21 @@ def download_v2_model_to_ram(force_download: bool = False) -> str:
     cache_dir = get_ram_cache_dir()
     model_dir = os.path.join(cache_dir, "byt5-leetspeak-v2")
     fallback_marker = os.path.join(cache_dir, ".fallback")
+    complete_marker = os.path.join(model_dir, ".download_complete")
 
-    # Check if already downloaded
-    if os.path.exists(model_dir) and not force_download:
-        config_file = os.path.join(model_dir, "config.json")
-        model_file = os.path.join(model_dir, "model.safetensors")
-        if os.path.exists(config_file) and os.path.exists(model_file):
-            if is_main_process():
-                print(f"[V2 MODEL] Already cached in RAM: {model_dir}")
-            return model_dir
+    # Check if already fully downloaded (completion marker exists)
+    if os.path.exists(complete_marker) and not force_download:
+        if is_main_process():
+            print(f"[V2 MODEL] Already cached in RAM: {model_dir}")
+        return model_dir
 
     # Only rank 0 downloads
     if is_main_process():
+        # Clean up any partial download
+        if os.path.exists(model_dir) and not os.path.exists(complete_marker):
+            print(f"[V2 MODEL] Cleaning up incomplete download...")
+            shutil.rmtree(model_dir, ignore_errors=True)
+
         print(f"\n{'='*60}")
         print("DOWNLOADING V2 MODEL TO RAM")
         print('='*60)
@@ -184,6 +187,9 @@ def download_v2_model_to_ram(force_download: bool = False) -> str:
                 local_dir=model_dir,
                 local_dir_use_symlinks=False,  # Copy files, don't symlink
             )
+            # Create completion marker AFTER successful download
+            with open(complete_marker, "w") as f:
+                f.write("complete")
             print(f"[V2 MODEL] Downloaded successfully to RAM!")
             # Remove fallback marker if exists
             if os.path.exists(fallback_marker):
@@ -194,9 +200,25 @@ def download_v2_model_to_ram(force_download: bool = False) -> str:
             # Create a marker file to signal fallback to other ranks
             with open(fallback_marker, "w") as f:
                 f.write("fallback")
+    else:
+        # Non-main ranks: wait for download to complete
+        print(f"[RANK {get_local_rank()}] Waiting for rank 0 to download model...")
+        import time
+        max_wait = 300  # 5 minutes max
+        waited = 0
+        while waited < max_wait:
+            if os.path.exists(complete_marker):
+                print(f"[RANK {get_local_rank()}] Model download complete, continuing...")
+                break
+            if os.path.exists(fallback_marker):
+                print(f"[RANK {get_local_rank()}] Using fallback to HuggingFace...")
+                return V2_MODEL_HUB
+            time.sleep(1)
+            waited += 1
 
-    # Wait for rank 0 to finish downloading
-    distributed_barrier()
+        if waited >= max_wait:
+            print(f"[RANK {get_local_rank()}] Timeout waiting for download, using fallback...")
+            return V2_MODEL_HUB
 
     # Check if we should fallback
     if os.path.exists(fallback_marker):
