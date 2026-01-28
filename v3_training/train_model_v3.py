@@ -88,6 +88,13 @@ from huggingface_hub import snapshot_download
 
 import evaluate
 
+# =============================================================================
+# FORCE ALL HUGGINGFACE CACHING TO RAM (prevents filling root disk)
+# =============================================================================
+os.environ["HF_HOME"] = "/dev/shm/hf_cache"
+os.environ["HF_DATASETS_CACHE"] = "/dev/shm/hf_cache"
+os.environ["TRANSFORMERS_CACHE"] = "/dev/shm/hf_cache"
+
 # Optional: accelerate for multi-GPU
 try:
     from accelerate import Accelerator
@@ -200,10 +207,11 @@ class TrainingConfig:
 
     # === Training Hyperparameters (2x RTX 5090 Optimized) ===
     # RTX 5090 has 32GB VRAM, similar compute to A100 40GB
-    # Batch settings for 2x RTX 5090
-    per_device_train_batch_size: int = 24  # 32GB VRAM allows this
-    per_device_eval_batch_size: int = 48
-    gradient_accumulation_steps: int = 3  # Effective batch: 24*2*3 = 144
+    # Batch settings for 2x RTX 5090 (32GB VRAM each)
+    # With gradient checkpointing + BF16, we can push batch size high
+    per_device_train_batch_size: int = 96  # Aggressive - disable grad checkpoint for 128
+    per_device_eval_batch_size: int = 192  # Eval can go higher (no gradients)
+    gradient_accumulation_steps: int = 2  # Effective batch: 96*2*2 = 384
 
     # Learning rate schedule (lower for fine-tuning from v2)
     learning_rate: float = 5e-5  # Lower than fresh training since we have v2
@@ -230,7 +238,6 @@ class TrainingConfig:
     eval_steps: int = 1500
     save_strategy: str = "steps"
     save_steps: int = 1500
-    save_total_limit: int = 3
     load_best_model_at_end: bool = True
     metric_for_best_model: str = "eval_loss"
     greater_is_better: bool = False
@@ -244,6 +251,10 @@ class TrainingConfig:
     output_dir: str = "./byt5_leetspeak_v3"
     logging_dir: str = "./logs_v3"
     cache_dir: str = "./.cache"
+
+    # === Storage Optimization (for low-disk instances) ===
+    checkpoints_to_ram: bool = False  # Save checkpoints to /dev/shm (RISKY - lost on reboot!)
+    save_total_limit: int = 2  # Keep only 2 checkpoints to save space
 
     # === Advanced Options ===
     seed: int = 42
@@ -1108,6 +1119,14 @@ def train(
     print(f"\n  Final train loss: {metrics.get('train_loss', 'N/A'):.4f}")
     print(f"  Final eval loss:  {eval_metrics.get('eval_loss', 'N/A'):.4f}")
     print(f"  Final BLEU:       {eval_metrics.get('eval_bleu', 'N/A'):.2f}")
+
+    # If checkpoints were in RAM, remind user to copy final model!
+    if config.checkpoints_to_ram:
+        print("\n" + "!" * 70)
+        print("⚠️  IMPORTANT: Your model is in RAM! Copy to disk NOW:")
+        print(f"    cp -r {config.output_dir} ./byt5_leetspeak_v3_FINAL")
+        print("!" * 70)
+
     print()
 
     return trainer
@@ -1206,12 +1225,12 @@ Examples:
     # Training options
     parser.add_argument("--epochs", "-e", type=int, default=3,
                         help="Number of training epochs (default: 3 for fine-tuning)")
-    parser.add_argument("--batch-size", "-b", type=int, default=24,
-                        help="Per-device batch size (default: 24 for RTX 5090)")
+    parser.add_argument("--batch-size", "-b", type=int, default=96,
+                        help="Per-device batch size (default: 96 for RTX 5090)")
     parser.add_argument("--learning-rate", "-lr", type=float, default=5e-5,
                         help="Learning rate (default: 5e-5 for fine-tuning)")
-    parser.add_argument("--accumulation", "-a", type=int, default=3,
-                        help="Gradient accumulation steps (default: 3)")
+    parser.add_argument("--accumulation", "-a", type=int, default=2,
+                        help="Gradient accumulation steps (default: 2)")
 
     # Advanced options
     parser.add_argument("--adversarial", action="store_true",
@@ -1220,6 +1239,10 @@ Examples:
                         help="Disable curriculum learning (sort by difficulty)")
     parser.add_argument("--resume", type=str, default=None,
                         help="Resume from checkpoint")
+    parser.add_argument("--checkpoints-to-ram", action="store_true",
+                        help="Save checkpoints to /dev/shm (saves disk but lost on reboot!)")
+    parser.add_argument("--save-limit", type=int, default=2,
+                        help="Max checkpoints to keep (default: 2 to save space)")
 
     # Evaluation/Testing
     parser.add_argument("--test", type=str, default=None,
@@ -1262,11 +1285,19 @@ def main():
         epochs = args.epochs
         print(f"[CONFIG] Fine-tuning from v2 ({V2_MODEL_HUB})")
 
+    # Handle output directory for checkpoints
+    output_dir = args.output
+    if args.checkpoints_to_ram:
+        # Save checkpoints to RAM disk to preserve root disk space
+        output_dir = "/dev/shm/byt5_leetspeak_v3_checkpoints"
+        print(f"[CONFIG] ⚠️  Checkpoints going to RAM: {output_dir}")
+        print(f"[CONFIG] ⚠️  WARNING: Checkpoints lost on reboot! Copy final model to disk!")
+
     # Build config
     config = TrainingConfig(
         base_model=base_model,
         continue_from=args.continue_from,
-        output_dir=args.output,
+        output_dir=output_dir,
         num_train_epochs=epochs,
         per_device_train_batch_size=args.batch_size,
         gradient_accumulation_steps=args.accumulation,
@@ -1275,6 +1306,8 @@ def main():
         fp16=args.fp16,
         gradient_checkpointing=not args.no_gradient_checkpointing,
         load_model_to_ram=not args.no_ram_cache,
+        checkpoints_to_ram=args.checkpoints_to_ram,
+        save_total_limit=args.save_limit,
     )
 
     # Train
