@@ -18,6 +18,7 @@ Requirements:
 """
 
 import json
+import time
 import re
 import argparse
 import random
@@ -43,30 +44,38 @@ def query_ollama(
     prompt = get_persona_prompt(persona)
     full_prompt = f"{prompt}\n\nInput: \"{text}\"\nOutput:"
     
-    try:
-        response = requests.post(
-            ollama_url,
-            json={
-                "model": model,
-                "prompt": full_prompt,
-                "stream": False,
-                "options": {
-                    "temperature": 0.8,
-                    "top_p": 0.9,
-                    "num_predict": 256,
-                }
-            },
-            timeout=60
-        )
-        response.raise_for_status()
-        result = response.json().get("response", "").strip()
-        
-        # Clean up the result
-        result = clean_llm_output(result, text)
-        return result
-        
-    except Exception as e:
-        return ""
+    for attempt in range(3):
+        try:
+            response = requests.post(
+                ollama_url,
+                json={
+                    "model": model,
+                    "prompt": full_prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.8,
+                        "top_p": 0.9,
+                        "num_predict": 256,
+                    }
+                },
+                timeout=180  # Increased for 32B model
+            )
+            response.raise_for_status()
+            result = response.json().get("response", "").strip()
+            
+            # Clean up the result
+            result = clean_llm_output(result, text)
+            return result
+            
+        except requests.exceptions.Timeout:
+            if attempt < 2:
+                time.sleep(2)
+                continue
+        except Exception as e:
+            # On other errors or final timeout, return empty
+            pass
+            
+    return ""
 
 
 def clean_llm_output(output: str, original: str) -> str:
