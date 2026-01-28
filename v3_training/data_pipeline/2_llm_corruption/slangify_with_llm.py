@@ -58,7 +58,7 @@ def query_ollama(
                         "num_predict": 256,
                     }
                 },
-                timeout=180  # Increased for 32B model
+                timeout=20  # Fast timeout (skip slow gens)
             )
             response.raise_for_status()
             result = response.json().get("response", "").strip()
@@ -279,8 +279,8 @@ if __name__ == "__main__":
                         help="Ollama API URL")
     parser.add_argument("--batch-size", "-b", type=int, default=100,
                         help="Batch size for progress tracking")
-    parser.add_argument("--workers", "-w", type=int, default=12,
-                        help="Parallel workers (default: 12 - 2x RTX 5090 optimized)")
+    parser.add_argument("--workers", "-w", type=int, default=32,
+                        help="Parallel workers (default: 32 - Max Speed Optimized)")
     parser.add_argument("--max", "-n", type=int, default=None,
                         help="Max samples to process (for testing)")
     
