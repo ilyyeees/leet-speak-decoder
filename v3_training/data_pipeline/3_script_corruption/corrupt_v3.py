@@ -32,12 +32,12 @@ class V3LeetCorruptor:
     Only does VISUAL corruption (char swaps, noise).
     Word-level slang was already handled by the LLM.
     """
-    
+
     def __init__(self):
         # ================================================================
         # CHARACTER MAPPINGS (visual leetspeak only)
         # ================================================================
-        
+
         # Simple/readable swaps (use more often)
         self.simple_map = {
             'a': ['4', '@'],
@@ -50,7 +50,7 @@ class V3LeetCorruptor:
             'b': ['8'],
             'g': ['9', '6'],
         }
-        
+
         # Complex swaps (use less often, for "heavy" intensity)
         self.complex_map = {
             'a': ['4', '@', '/\\'],
@@ -79,15 +79,15 @@ class V3LeetCorruptor:
         # We WANT to corrupt slang like 'thx' -> '7hx', 'idk' -> '1dk'
         # The model needs to learn these variations.
         # Only protection: has_digit() prevents destroying LLM-added numbers like '2nite'
-    
+
     def has_digit(self, word: str) -> bool:
         """Check if word already contains digits (from LLM like '2nite', 'l8r')."""
         return bool(re.search(r'\d', word))
-    
+
     def corrupt_char(self, char: str, intensity: float, use_complex: bool) -> str:
         """
         Replace a single character with leetspeak.
-        
+
         Args:
             char: Character to potentially replace
             intensity: 0.0-1.0, probability of replacement
@@ -95,70 +95,90 @@ class V3LeetCorruptor:
         """
         if random.random() > intensity:
             return char
-        
+
         lower = char.lower()
         char_map = self.complex_map if use_complex else self.simple_map
-        
+
         if lower in char_map:
             replacement = random.choice(char_map[lower])
             # Preserve case for first char
             if char.isupper() and len(replacement) > 0:
                 return replacement[0].upper() + replacement[1:]
             return replacement
-        
+
         return char
-    
+
+    def apply_phonetic_hacks(self, word: str) -> str:
+        """Apply simple phonetic shortcuts common in leetspeak."""
+        word_lower = word.lower()
+        
+        # 'cks' -> 'x' (hacks -> hax, rocks -> rox)
+        if word_lower.endswith('cks'):
+            return word[:-3] + 'x'
+            
+        # ending 's' -> 'z' (skills -> skillz)
+        if word_lower.endswith('s') and len(word) > 3:
+            if random.random() < 0.6:  # High chance
+                return word[:-1] + 'z'
+                
+        return word
+
     def corrupt_word(self, word: str, intensity: float, use_complex: bool) -> str:
         """
         Apply character-level corruption to a word.
-        
-        Only protects words that already have digits (LLM-added like "2nite").
-        We intentionally corrupt slang words (thx -> 7hx, idk -> 1dk).
         """
         # Only skip words that already have digits from LLM (like '2nite', 'l8r')
         if self.has_digit(word):
             return word
-        
-        # Apply character corruption
+            
+        # 1. Phonetic hacks first (structure changes)
+        if intensity > 0.3:
+            word = self.apply_phonetic_hacks(word)
+
+        # 2. Apply character corruption
         result = []
         for char in word:
+            # Stuttering (repeating chars) - e.g. "whaaat"
+            # Only for vowels and mostly in heavy intensity
+            if intensity > 0.6 and char.lower() in 'aeiou' and random.random() < 0.05:
+                result.append(char * random.randint(2, 4))
+                continue
+                
             result.append(self.corrupt_char(char, intensity, use_complex))
-        
+
         return ''.join(result)
-    
+
     def add_noise(self, text: str, intensity: float) -> str:
         """Add random character noise (stretching, typos)."""
-        if random.random() > intensity * 0.3:  # Less frequent than char swaps
+        if random.random() > intensity * 0.3:
             return text
         
         words = text.split()
         result = []
         
         for word in words:
-            # Protect slang terms
-            if word.lower() in self.protected_words or self.has_digit(word):
+            if self.has_digit(word):
                 result.append(word)
                 continue
-            
-            # Random character stretch (10% chance)
-            if random.random() < 0.1 and len(word) > 2:
-                pos = random.randint(0, len(word) - 1)
-                char = word[pos]
-                if char.isalpha():
-                    stretch = random.randint(2, 4)
-                    word = word[:pos] + char * stretch + word[pos+1:]
+                
+            # Random typo (qwerty adjacency could go here, but random insert for now)
+            # Insert random punctuation
+            if random.random() < 0.05 * intensity:
+                pos = random.randint(0, len(word))
+                punct = random.choice(".,!?;:")
+                word = word[:pos] + punct + word[pos:]
             
             result.append(word)
         
         return ' '.join(result)
-    
+
     def apply_case_chaos(self, text: str) -> str:
         """Random case changes (rare, for variety)."""
         roll = random.random()
-        
+
         if roll < 0.05:  # 5% ALL CAPS
             return text.upper()
-        
+
         if roll < 0.10:  # 5% aLtErNaTiNg
             result = []
             upper = random.choice([True, False])
@@ -169,41 +189,41 @@ class V3LeetCorruptor:
                 else:
                     result.append(char)
             return ''.join(result)
-        
+
         if roll < 0.30:  # 20% all lowercase
             return text.lower()
-        
+
         return text
-    
+
     def corrupt(self, text: str, intensity: float = 0.5) -> str:
         """
         Main corruption function.
-        
+
         Args:
             text: Slang text to corrupt further
             intensity: 0.0-1.0, controls how aggressive the corruption is
                       0.0-0.3 = light (some char swaps)
                       0.3-0.6 = medium (more swaps, some noise)
                       0.6-1.0 = heavy (lots of swaps, noise, case chaos)
-        
+
         Returns:
             Corrupted leetspeak text
         """
         use_complex = intensity > 0.5
-        
+
         # Word-level corruption
         words = text.split()
         corrupted_words = [self.corrupt_word(w, intensity, use_complex) for w in words]
         result = ' '.join(corrupted_words)
-        
+
         # Add noise for medium+ intensity
         if intensity > 0.3:
             result = self.add_noise(result, intensity)
-        
+
         # Add case chaos for high intensity
         if intensity > 0.6 and random.random() < 0.3:
             result = self.apply_case_chaos(result)
-        
+
         return result
 
 
@@ -214,19 +234,19 @@ def generate_variants(
 ) -> list:
     """
     Generate multiple corruption variants of the same slang text.
-    
+
     This is the "Multiplier Effect" - 1 LLM output → many training examples.
-    
+
     Args:
         slang_text: Text from LLM slangification
         corruptor: Corruptor instance
         num_variants: Number of variants to generate
-    
+
     Returns:
         List of (corrupted_text, intensity) tuples
     """
     variants = []
-    
+
     # Define intensity distribution
     # 40% light, 35% medium, 25% heavy
     intensities = (
@@ -234,14 +254,14 @@ def generate_variants(
         [random.uniform(0.3, 0.6) for _ in range(int(num_variants * 0.35))] +
         [random.uniform(0.6, 0.9) for _ in range(num_variants - int(num_variants * 0.75))]
     )
-    
+
     for intensity in intensities:
         corrupted = corruptor.corrupt(slang_text, intensity)
-        
+
         # Skip if corruption didn't change anything
         if corrupted != slang_text:
             variants.append((corrupted, intensity))
-    
+
     # Deduplicate while preserving order
     seen = set()
     unique_variants = []
@@ -249,7 +269,7 @@ def generate_variants(
         if variant not in seen:
             seen.add(variant)
             unique_variants.append((variant, intensity))
-    
+
     return unique_variants
 
 
@@ -261,7 +281,7 @@ def process_file(
 ):
     """
     Process slang pairs and generate training data.
-    
+
     Args:
         input_path: Path to slang_pairs.jsonl
         output_path: Path to save training_data_v3.jsonl
@@ -274,14 +294,14 @@ def process_file(
     print(f"\n  Input:  {input_path}")
     print(f"  Output: {output_path}")
     print(f"  Variants per sample: {variants_per_sample}")
-    
+
     input_file = Path(input_path)
     if not input_file.exists():
         print(f"\n[ERROR] Input file not found: {input_path}")
         return
-    
+
     corruptor = V3LeetCorruptor()
-    
+
     # Load input
     print(f"\n[1/3] Loading slang pairs...")
     items = []
@@ -291,39 +311,39 @@ def process_file(
                 items.append(json.loads(line.strip()))
             except json.JSONDecodeError:
                 continue
-    
+
     if max_samples:
         items = items[:max_samples]
-    
+
     print(f"       Loaded {len(items)} slang pairs")
     print(f"       Expected output: ~{len(items) * variants_per_sample} training pairs")
-    
+
     # Process
     print(f"\n[2/3] Generating corruption variants...")
-    
+
     output_file = Path(output_path)
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    
+
     all_pairs = []
     intensity_dist = {'light': 0, 'medium': 0, 'heavy': 0}
-    
+
     for i, item in enumerate(items):
         original = item.get('original', '')  # Clean English target
         slang = item.get('slang', '')  # LLM-generated slang
-        
+
         if not original or not slang:
             continue
-        
+
         # Generate variants
         variants = generate_variants(slang, corruptor, variants_per_sample)
-        
+
         for corrupted, intensity in variants:
             pair = {
                 'input_text': corrupted,
                 'target_text': original,
             }
             all_pairs.append(json.dumps(pair))
-            
+
             # Track intensity distribution
             if intensity < 0.3:
                 intensity_dist['light'] += 1
@@ -331,19 +351,19 @@ def process_file(
                 intensity_dist['medium'] += 1
             else:
                 intensity_dist['heavy'] += 1
-        
+
         # Progress
         if (i + 1) % 5000 == 0:
             print(f"       Processed {i + 1}/{len(items)} samples, {len(all_pairs)} pairs generated")
-    
+
     print(f"\n[3/3] Shuffling and saving...")
-    
+
     random.shuffle(all_pairs)
-    
+
     with open(output_file, 'w') as f:
         for pair in all_pairs:
             f.write(pair + '\n')
-    
+
     # Stats
     total = len(all_pairs)
     print(f"\n" + "=" * 60)
@@ -357,12 +377,12 @@ def process_file(
     print(f"    Medium (0.3-0.6): {intensity_dist['medium']} ({intensity_dist['medium']/total*100:.1f}%)")
     print(f"    Heavy (0.6-0.9):  {intensity_dist['heavy']} ({intensity_dist['heavy']/total*100:.1f}%)")
     print(f"\n  Output: {output_path}")
-    
+
     # Show samples
     print("\n" + "=" * 60)
     print("SAMPLE TRAINING PAIRS:")
     print("=" * 60)
-    
+
     samples = random.sample(all_pairs, min(5, len(all_pairs)))
     for sample_json in samples:
         sample = json.loads(sample_json)
@@ -373,7 +393,7 @@ def process_file(
 def demo():
     """Demonstrate the corruption pipeline."""
     corruptor = V3LeetCorruptor()
-    
+
     # Examples of slang text (as if from LLM)
     examples = [
         ("I really don't know what to do about this.", "idk wut to do bout this tbh"),
@@ -382,16 +402,16 @@ def demo():
         ("That game was really easy to win.", "that game was ez to win fr"),
         ("I am going to be late, wait for me.", "im gonna be l8 w8 4 me"),
     ]
-    
+
     print("=" * 60)
     print("V3 CORRUPTION DEMO")
     print("=" * 60)
-    
+
     for original, slang in examples:
         print(f"\n  Original: {original}")
         print(f"  LLM Slang: {slang}")
         print(f"  Corrupted variants:")
-        
+
         variants = generate_variants(slang, corruptor, 5)
         for corrupted, intensity in variants:
             level = "light" if intensity < 0.3 else "medium" if intensity < 0.6 else "heavy"
@@ -410,9 +430,9 @@ if __name__ == "__main__":
                         help="Max input samples (for testing)")
     parser.add_argument("--demo", "-d", action="store_true",
                         help="Show demo examples")
-    
+
     args = parser.parse_args()
-    
+
     if args.demo:
         demo()
     else:
