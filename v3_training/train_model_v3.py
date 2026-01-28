@@ -490,55 +490,67 @@ class SanityCheckCallback(TrainerCallback):
         if model is None:
             return
 
+        # Only run on main process to avoid multi-GPU issues
+        if not is_main_process():
+            return
+
         header = "EPOCH END" if is_epoch_end else f"Step {step}"
         print(f"\n{'='*60}")
         print(f"SANITY CHECK @ {header}")
         print('='*60)
 
-        model.eval()
-        device = next(model.parameters()).device
+        try:
+            model.eval()
+            device = next(model.parameters()).device
 
-        correct = 0
-        total = len(self.test_cases)
+            correct = 0
+            total = len(self.test_cases)
 
-        # Process in batches for efficiency
-        inputs = [tc[0] for tc in self.test_cases]
-        expected = [tc[1] for tc in self.test_cases]
+            # Process in batches for efficiency
+            inputs = [tc[0] for tc in self.test_cases]
+            expected = [tc[1] for tc in self.test_cases]
 
-        tokenized = self.tokenizer(
-            inputs,
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=256
-        ).to(device)
+            tokenized = self.tokenizer(
+                inputs,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=256
+            ).to(device)
 
-        with torch.no_grad():
-            outputs = model.generate(
-                **tokenized,
-                max_length=256,
-                num_beams=4,
-                early_stopping=True,
-            )
-            decoded = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+            with torch.no_grad():
+                outputs = model.generate(
+                    **tokenized,
+                    max_length=256,
+                    num_beams=4,
+                    early_stopping=True,
+                )
+                decoded = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
 
-        for inp, exp, out in zip(inputs, expected, decoded):
-            # Check if output matches expected (case-insensitive, strip whitespace)
-            match = out.strip().lower() == exp.strip().lower()
-            if match:
-                correct += 1
+            for inp, exp, out in zip(inputs, expected, decoded):
+                # Check if output matches expected (case-insensitive, strip whitespace)
+                match = out.strip().lower() == exp.strip().lower()
+                if match:
+                    correct += 1
 
-            status = "✓" if match else "✗"
-            print(f"  {status} IN:  {inp}")
-            print(f"    EXP: {exp}")
-            print(f"    OUT: {out}")
-            print()
+                status = "✓" if match else "✗"
+                print(f"  {status} IN:  {inp}")
+                print(f"    EXP: {exp}")
+                print(f"    OUT: {out}")
+                print()
 
-        accuracy = correct / total * 100
-        print(f"Accuracy: {correct}/{total} ({accuracy:.1f}%)")
-        print('='*60 + "\n")
+            accuracy = correct / total * 100
+            print(f"Accuracy: {correct}/{total} ({accuracy:.1f}%)")
+            print('='*60 + "\n")
 
-        model.train()
+        except Exception as e:
+            print(f"[SANITY CHECK] Error (non-fatal): {e}")
+            print('='*60 + "\n")
+
+        finally:
+            # Always restore training mode and clean up memory
+            model.train()
+            torch.cuda.empty_cache()
 
 
 # ============================================================================
