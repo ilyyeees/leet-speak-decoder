@@ -258,7 +258,7 @@ class TrainingConfig:
 
     # === Advanced Options ===
     seed: int = 42
-    dataloader_num_workers: int = 8
+    dataloader_num_workers: int = 32
     dataloader_pin_memory: bool = True
     dataloader_prefetch_factor: int = 4
 
@@ -1070,7 +1070,7 @@ def train(
         train_dataset=dataset['train'],
         eval_dataset=dataset['validation'],
         data_collator=data_collator,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         callbacks=callbacks,
         compute_metrics=ComputeMetrics(tokenizer),
     )
