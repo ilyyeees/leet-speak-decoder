@@ -20,6 +20,8 @@ import random
 import requests
 from pathlib import Path
 from typing import Generator
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 
 # Default Ollama endpoint
 OLLAMA_URL = "http://localhost:11434/api/generate"
@@ -217,17 +219,11 @@ def generate_sentences(
     model: str = "qwen2.5:32b",
     target_count: int = 15000,
     batch_size: int = 20,
-    ollama_url: str = OLLAMA_URL
+    ollama_url: str = OLLAMA_URL,
+    workers: int = 4
 ) -> int:
     """
     Generate diverse clean English sentences using LLM.
-    
-    Args:
-        output_path: Path to save JSONL output
-        model: Ollama model name
-        target_count: Target number of sentences
-        batch_size: Sentences per LLM call
-        ollama_url: Ollama API endpoint
     """
     global OLLAMA_URL
     OLLAMA_URL = ollama_url
@@ -237,38 +233,50 @@ def generate_sentences(
     print("=" * 60)
     print(f"\n  Model: {model}")
     print(f"  Target: {target_count} sentences")
+    print(f"  Workers: {workers}")
     print(f"  Ollama: {ollama_url}")
     
     # Test connection
     print(f"\n[1/3] Testing Ollama connection...")
     test_response = query_ollama("Say 'hello' in one word.", model)
     if not test_response:
-        print("[ERROR] Cannot connect to Ollama. Make sure it's running:")
-        print("        ollama serve")
-        print(f"        ollama pull {model}")
+        print("[ERROR] Cannot connect to Ollama.")
         return 0
     print("       Connection OK!")
     
     print(f"\n[2/3] Generating sentences...")
     
     valid_sentences = set()
-    batches_attempted = 0
-    max_batches = (target_count // batch_size) * 3  # Allow 3x retries
+    pbar = tqdm(total=target_count)
     
-    while len(valid_sentences) < target_count and batches_attempted < max_batches:
+    def worker_job():
+        local_valid = []
         prompt = generate_prompt_batch(batch_size)
         response = query_ollama(prompt, model)
-        
         if response:
             sentences = extract_sentences(response)
             for sent in sentences:
                 if is_valid_generated(sent):
-                    valid_sentences.add(sent)
-        
-        batches_attempted += 1
-        
-        if batches_attempted % 10 == 0:
-            print(f"       Generated {len(valid_sentences)}/{target_count} sentences ({batches_attempted} batches)")
+                    local_valid.append(sent)
+        return local_valid
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        while len(valid_sentences) < target_count:
+            # Submit a batch of jobs
+            futures = [executor.submit(worker_job) for _ in range(workers * 2)]
+            
+            for future in as_completed(futures):
+                results = future.result()
+                for res in results:
+                    if len(valid_sentences) < target_count:
+                        if res not in valid_sentences:
+                            valid_sentences.add(res)
+                            pbar.update(1)
+                
+                if len(valid_sentences) >= target_count:
+                    break
+    
+    pbar.close()
     
     print(f"\n[3/3] Saving {len(valid_sentences)} sentences to {output_path}...")
     
@@ -285,13 +293,6 @@ def generate_sentences(
     print(f"\n✓ Done! Saved {len(sentences_list)} sentences")
     print(f"  Output: {output_path}")
     
-    # Show samples
-    print("\n" + "=" * 60)
-    print("SAMPLE SENTENCES:")
-    print("=" * 60)
-    for sent in random.sample(sentences_list, min(5, len(sentences_list))):
-        print(f"  • {sent}")
-    
     return len(sentences_list)
 
 
@@ -307,6 +308,8 @@ if __name__ == "__main__":
                         help="Sentences per LLM call (default: 20)")
     parser.add_argument("--ollama-url", default="http://localhost:11434/api/generate",
                         help="Ollama API URL")
+    parser.add_argument("--workers", "-w", type=int, default=4,
+                        help="Number of parallel workers (default: 4)")
     
     args = parser.parse_args()
-    generate_sentences(args.output, args.model, args.count, args.batch, args.ollama_url)
+    generate_with_llm(args.output, args.model, args.count, args.batch, args.ollama_url, args.workers)
