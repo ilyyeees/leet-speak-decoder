@@ -97,17 +97,22 @@ def collect_eli5(output_path: str, target_count: int = 15000):
     
     print(f"\n[1/4] Loading ELI5 dataset...")
     try:
-        # Try the main ELI5 dataset
-        dataset = load_dataset("eli5", split="train_eli5", trust_remote_code=True)
+        # Try the main ELI5 dataset (without trust_remote_code)
+        dataset = load_dataset("eli5", split="train_eli5")
     except Exception as e:
-        print(f"       Main dataset unavailable, trying alternative...")
+        print(f"       Main dataset unavailable ({e}), trying alternative...")
         try:
-            # Alternative: eli5_category dataset
-            dataset = load_dataset("eli5_category", "eli5", split="train", trust_remote_code=True)
+            # Alternative: specialized eli5 category
+            dataset = load_dataset("eli5_category", split="train")
         except Exception:
-            print(f"       ELI5 dataset not available. Trying Reddit TLDR...")
-            # Fallback to Reddit TLDR summaries
-            dataset = load_dataset("reddit_tifu", "short", split="train", trust_remote_code=True)
+            print(f"       ELI5 dataset not available. Trying C4 as fallback...")
+            # Fallback to C4 realnewslike (clean, diverse English)
+            try:
+                dataset = load_dataset("c4", "realnewslike", split="train", streaming=True)
+                dataset = dataset.take(target_count * 2)  # Take what we need since it's huge
+            except Exception as e:
+                print(f"[ERROR] Could not load any fallback dataset: {e}")
+                return 0
     
     print(f"       Loaded {len(dataset)} entries")
     
