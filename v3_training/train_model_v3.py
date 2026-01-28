@@ -1139,7 +1139,9 @@ def train(
         data_collator=data_collator,
         processing_class=tokenizer,
         callbacks=callbacks,
-        compute_metrics=ComputeMetrics(tokenizer),
+        # DISABLED: compute_metrics causes OOM during eval (stores all logits in VRAM)
+        # Loss is sufficient for early stopping; sanity check shows real outputs
+        # compute_metrics=ComputeMetrics(tokenizer),
     )
 
     # Start training
