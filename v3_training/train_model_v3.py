@@ -668,13 +668,13 @@ def prepare_dataset(
             padding=False,
         )
 
-        with tokenizer.as_target_tokenizer():
-            labels = tokenizer(
-                examples['target'],
-                max_length=config.max_target_length,
-                truncation=True,
-                padding=False,
-            )
+        # UPDATED: The modern way to tokenize targets
+        labels = tokenizer(
+            text_target=examples['target'],
+            max_length=config.max_target_length,
+            truncation=True,
+            padding=False,
+        )
 
         model_inputs['labels'] = labels['input_ids']
         return model_inputs
