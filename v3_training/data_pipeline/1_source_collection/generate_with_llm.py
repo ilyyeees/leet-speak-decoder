@@ -251,13 +251,18 @@ def generate_sentences(
     
     def worker_job():
         local_valid = []
-        prompt = generate_prompt_batch(batch_size)
-        response = query_ollama(prompt, model)
-        if response:
-            sentences = extract_sentences(response)
-            for sent in sentences:
-                if is_valid_generated(sent):
-                    local_valid.append(sent)
+        try:
+            prompt = generate_prompt_batch(batch_size)
+            # print("DEBUG: Sending request...")  # Uncomment if needed
+            response = query_ollama(prompt, model)
+            if response:
+                sentences = extract_sentences(response)
+                # print(f"DEBUG: Got {len(sentences)} raw sentences")
+                for sent in sentences:
+                    if is_valid_generated(sent):
+                        local_valid.append(sent)
+        except Exception as e:
+            print(f"\n[Worker Error] {e}")
         return local_valid
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
