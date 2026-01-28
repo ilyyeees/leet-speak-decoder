@@ -141,10 +141,10 @@ def query_ollama(prompt: str, model: str = "qwen2.5:32b") -> str:
                 "options": {
                     "temperature": 1.0,  # High creativity
                     "top_p": 0.95,
-                    "num_predict": 64,   # Short sentences only
+                    "num_predict": 1024, # Enough for batch of sentences
                 }
             },
-            timeout=30  # Don't wait forever
+            timeout=60  # Reasonable wait for batch
         )
         response.raise_for_status()
         return response.json().get("response", "")
