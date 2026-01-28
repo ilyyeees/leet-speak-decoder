@@ -312,4 +312,4 @@ if __name__ == "__main__":
                         help="Number of parallel workers (default: 4)")
     
     args = parser.parse_args()
-    generate_with_llm(args.output, args.model, args.count, args.batch, args.ollama_url, args.workers)
+    generate_sentences(args.output, args.model, args.count, args.batch, args.ollama_url, args.workers)
