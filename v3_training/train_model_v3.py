@@ -95,6 +95,22 @@ os.environ["HF_HOME"] = "/dev/shm/hf_cache"
 os.environ["HF_DATASETS_CACHE"] = "/dev/shm/hf_cache"
 os.environ["TRANSFORMERS_CACHE"] = "/dev/shm/hf_cache"
 
+
+def get_local_rank() -> int:
+    """Get local rank for distributed training (0 if not distributed)."""
+    return int(os.environ.get("LOCAL_RANK", 0))
+
+
+def is_main_process() -> bool:
+    """Check if this is the main process (rank 0)."""
+    return get_local_rank() == 0
+
+
+def distributed_barrier():
+    """Synchronize all processes in distributed training."""
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
+
 # Optional: accelerate for multi-GPU
 try:
     from accelerate import Accelerator
@@ -133,48 +149,70 @@ def download_v2_model_to_ram(force_download: bool = False) -> str:
     """
     Download the v2 model to RAM-backed storage.
 
-    This avoids disk space issues on instances with limited storage
-    but plenty of RAM.
+    For multi-GPU: Only rank 0 downloads, others wait.
 
     Returns:
         Path to the downloaded model in RAM
     """
     cache_dir = get_ram_cache_dir()
     model_dir = os.path.join(cache_dir, "byt5-leetspeak-v2")
+    fallback_marker = os.path.join(cache_dir, ".fallback")
 
     # Check if already downloaded
     if os.path.exists(model_dir) and not force_download:
         config_file = os.path.join(model_dir, "config.json")
-        if os.path.exists(config_file):
-            print(f"[V2 MODEL] Already cached in RAM: {model_dir}")
+        model_file = os.path.join(model_dir, "model.safetensors")
+        if os.path.exists(config_file) and os.path.exists(model_file):
+            if is_main_process():
+                print(f"[V2 MODEL] Already cached in RAM: {model_dir}")
             return model_dir
 
-    print(f"\n{'='*60}")
-    print("DOWNLOADING V2 MODEL TO RAM")
-    print('='*60)
-    print(f"  Source: {V2_MODEL_HUB}")
-    print(f"  Destination: {model_dir}")
-    print(f"  (This keeps disk usage low)")
-    print()
+    # Only rank 0 downloads
+    if is_main_process():
+        print(f"\n{'='*60}")
+        print("DOWNLOADING V2 MODEL TO RAM")
+        print('='*60)
+        print(f"  Source: {V2_MODEL_HUB}")
+        print(f"  Destination: {model_dir}")
+        print(f"  (This keeps disk usage low)")
+        print()
 
-    try:
-        # Download to RAM-backed directory
-        snapshot_download(
-            repo_id=V2_MODEL_HUB,
-            local_dir=model_dir,
-            local_dir_use_symlinks=False,  # Copy files, don't symlink
-        )
-        print(f"[V2 MODEL] Downloaded successfully to RAM!")
-        return model_dir
+        try:
+            # Download to RAM-backed directory
+            snapshot_download(
+                repo_id=V2_MODEL_HUB,
+                local_dir=model_dir,
+                local_dir_use_symlinks=False,  # Copy files, don't symlink
+            )
+            print(f"[V2 MODEL] Downloaded successfully to RAM!")
+            # Remove fallback marker if exists
+            if os.path.exists(fallback_marker):
+                os.remove(fallback_marker)
+        except Exception as e:
+            print(f"[V2 MODEL] Download failed: {e}")
+            print(f"[V2 MODEL] Falling back to direct HuggingFace loading...")
+            # Create a marker file to signal fallback to other ranks
+            with open(fallback_marker, "w") as f:
+                f.write("fallback")
 
-    except Exception as e:
-        print(f"[V2 MODEL] Download failed: {e}")
-        print(f"[V2 MODEL] Falling back to direct HuggingFace loading...")
+    # Wait for rank 0 to finish downloading
+    distributed_barrier()
+
+    # Check if we should fallback
+    if os.path.exists(fallback_marker):
         return V2_MODEL_HUB
+
+    return model_dir
 
 
 def cleanup_ram_cache():
-    """Clean up RAM cache when done."""
+    """Clean up RAM cache when done. Only runs on main process."""
+    if not is_main_process():
+        return
+
+    # Wait for all processes to finish using the cache
+    distributed_barrier()
+
     if os.path.exists(RAM_CACHE_DIR):
         try:
             shutil.rmtree(RAM_CACHE_DIR)
