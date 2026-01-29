@@ -27,3 +27,4 @@ tensordock_key.pub
 
 v3_training/data_pipeline/2_llm_corruption/backup_loop.sh
 v3_training/data_pipeline/2_llm_corruption/slang*
+v3_training/training_data_v3.jsonl
