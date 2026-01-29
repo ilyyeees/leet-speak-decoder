@@ -10,14 +10,14 @@ built on `google/byt5-base`, v3 uses **curriculum learning** and **adversarial f
 
 ---
 
-## 🎯 the number problem: solved
+## the number problem: solved
 
 v3 is the first model in this series to perfectly distinguish between numbers used as letters and numbers used as quantities within the same sentence.
 
 ```
 input:  1t5 2 l8 4 2 people
-v2 out: It's to late for to people.  ❌
-v3 out: It is too late for 2 people. ✅
+v2 out: It's to late for to people.  (fail)
+v3 out: It is too late for 2 people. (pass)
 ```
 
 ---
@@ -156,7 +156,8 @@ pip install transformers torch sentencepiece
 
 ## links
 
-- **huggingface**: [ilyyeees/byt5-leetspeak-decoder](https://huggingface.co/ilyyeees/byt5-leetspeak-decoder)
+- **model**: [ilyyeees/byt5-leetspeak-decoder](https://huggingface.co/ilyyeees/byt5-leetspeak-decoder)
+- **dataset**: [ilyyeees/leetspeak-to-english](https://huggingface.co/datasets/ilyyeees/leetspeak-to-english)
 - **github**: [ilyyeees/leet-speak-decoder](https://github.com/ilyyeees/leet-speak-decoder)
 
 ---
