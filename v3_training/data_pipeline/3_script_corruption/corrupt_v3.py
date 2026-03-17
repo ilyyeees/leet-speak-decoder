@@ -155,7 +155,6 @@ class V3LeetCorruptor:
             'doing': 'doin',
             'pretty': 'pritty',
             'really': 'rly',
-            'very': 'v',
             'about': 'bout',
             'because': 'cuz',
             'probably': 'prolly',
@@ -458,8 +457,9 @@ class V3LeetCorruptor:
 
         lower = char.lower()
 
-        # Complex map only at VERY high intensity (> 0.8) and rarely
-        if use_complex and intensity > 0.8 and random.random() < 0.3:
+        # Complex map only at EXTREMELY high intensity (> 0.9) and rarely (15% chance)
+        # This makes |\| for N, |-| for H, etc. VERY rare
+        if use_complex and intensity > 0.9 and random.random() < 0.15:
             char_map = self.complex_map
         else:
             char_map = self.simple_map
@@ -730,9 +730,9 @@ def generate_variants(
     variants = []
 
     # Define intensity distribution across the spectrum
-    # 35% light, 40% medium, 25% heavy (shifted medium up for better coverage)
-    num_light = int(num_variants * 0.35)
-    num_medium = int(num_variants * 0.40)
+    # 50% light, 45% medium, 5% heavy - mostly readable corruption
+    num_light = int(num_variants * 0.50)
+    num_medium = int(num_variants * 0.45)
     num_heavy = num_variants - num_light - num_medium
 
     intensities = (

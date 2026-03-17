@@ -124,6 +124,7 @@ except ImportError:
 # ============================================================================
 
 V2_MODEL_HUB = "ilyyeees/byt5-leetspeak-decoder"
+V2_REVISION = "v2-legacy"  # Specific branch/tag for v2 model
 RAM_CACHE_DIR = "/dev/shm/hf_cache"  # Linux shared memory (RAM-backed)
 
 
@@ -184,6 +185,7 @@ def download_v2_model_to_ram(force_download: bool = False) -> str:
             # Download to RAM-backed directory
             snapshot_download(
                 repo_id=V2_MODEL_HUB,
+                revision=V2_REVISION,  # Load specific branch/tag
                 local_dir=model_dir,
                 local_dir_use_symlinks=False,  # Copy files, don't symlink
             )
@@ -811,8 +813,17 @@ def adversarial_filter(
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     try:
-        tokenizer = AutoTokenizer.from_pretrained(v2_model_path)
-        model = AutoModelForSeq2SeqLM.from_pretrained(v2_model_path)
+        # Check if v2_model_path is a local path (downloaded) or the hub ID
+        if os.path.exists(v2_model_path):
+            # Loading from local folder (RAM), no revision needed
+            tokenizer = AutoTokenizer.from_pretrained(v2_model_path)
+            model = AutoModelForSeq2SeqLM.from_pretrained(v2_model_path)
+        else:
+            # Loading from HF Hub fallback, use revision
+            print(f"[ADVERSARIAL] Loading from Hub branch: {V2_REVISION}")
+            tokenizer = AutoTokenizer.from_pretrained(v2_model_path, revision=V2_REVISION)
+            model = AutoModelForSeq2SeqLM.from_pretrained(v2_model_path, revision=V2_REVISION)
+
         model.to(device)
         model.eval()
     except Exception as e:
@@ -1028,8 +1039,14 @@ def train(
     else:
         print(f"[MODEL] Training from: {model_path}")
 
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
+    # Determine if we need revision (when loading from Hub directly)
+    revision_arg = None
+    if model_path == V2_MODEL_HUB:
+        revision_arg = V2_REVISION
+        print(f"[MODEL] Using Hub branch: {V2_REVISION}")
+
+    tokenizer = AutoTokenizer.from_pretrained(model_path, revision=revision_arg)
+    model = AutoModelForSeq2SeqLM.from_pretrained(model_path, revision=revision_arg)
 
     # Enable gradient checkpointing
     if config.gradient_checkpointing:
@@ -1197,9 +1214,15 @@ def train(
     print("=" * 70)
     print(f"\n  End time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"  Model saved to: {config.output_dir}")
-    print(f"\n  Final train loss: {metrics.get('train_loss', 'N/A'):.4f}")
-    print(f"  Final eval loss:  {eval_metrics.get('eval_loss', 'N/A'):.4f}")
-    print(f"  Final BLEU:       {eval_metrics.get('eval_bleu', 'N/A'):.2f}")
+
+    # Safe formatting for metrics that may not exist
+    train_loss = metrics.get('train_loss')
+    eval_loss = eval_metrics.get('eval_loss')
+    eval_bleu = eval_metrics.get('eval_bleu')
+
+    print(f"\n  Final train loss: {train_loss:.4f}" if train_loss is not None else "\n  Final train loss: N/A")
+    print(f"  Final eval loss:  {eval_loss:.4f}" if eval_loss is not None else "  Final eval loss:  N/A")
+    print(f"  Final BLEU:       {eval_bleu:.2f}" if eval_bleu is not None else "  Final BLEU:       N/A (disabled)")
 
     # Clean up checkpoint folders to save disk space (final model is already saved)
     import glob

@@ -6,6 +6,13 @@
 the definitive byte-level translator for leetspeak, internet slang, and visual character obfuscation.
 built on `google/byt5-base`, v3 uses **curriculum learning** and **adversarial filtering** to finally solve the number ambiguity problem.
 
+> **v3 is currently broken — use v2 for now.**
+> the v3 model on `main` has known issues and is being reworked. for a working model, load from the `v2-legacy` branch:
+> ```python
+> model = AutoModelForSeq2SeqLM.from_pretrained("ilyyeees/byt5-leetspeak-decoder", revision="v2-legacy")
+> tokenizer = AutoTokenizer.from_pretrained("ilyyeees/byt5-leetspeak-decoder", revision="v2-legacy")
+> ```
+
 **try it online**: [huggingface.co/ilyyeees/byt5-leetspeak-decoder](https://huggingface.co/ilyyeees/byt5-leetspeak-decoder)
 
 ---
